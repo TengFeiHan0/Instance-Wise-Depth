@@ -1,29 +1,25 @@
-# AdelaiDet
+# Instance-wise Depth Estimation
 
-AdelaiDet is an open source toolbox for multiple instance-level detection applications based on [Detectron2](https://github.com/facebookresearch/detectron2).
-All instance-level recognition works from our group will be open-sourced here.
+## Note:Based on AdelaiDet, which is an open source toolbox including a series of instance segmentation algorithms, I develop my own system.
 
-AdelaiDet implements the following algorithms:
 
-* [FCOS](https://arxiv.org/abs/1904.01355)
+
+
+AdelaiDet consists of the following algorithms:
+
 * [BlendMask](https://arxiv.org/abs/2001.00309) _to be released_
 * [SOLO](https://arxiv.org/abs/1912.04488) _to be released_
-* [DirectPose](https://arxiv.org/abs/1911.07451) _to be released_
+
 
 
 ## Models
 
 More models will be released soon.
 
-### COCO Object Detecton Baselines with FCOS
-
-Name | box AP | download
---- |:---:|:---:
-[FCOS_R_50_1x](configs/FCOS-Detection/R_50_1x.yaml) | 38.7 | [model](https://cloudstor.aarnet.edu.au/plus/s/glqFc13cCoEyHYy/download)
 
 ## Installation
 
-First install Detectron2 following the official guide: [INSTALL.md](https://github.com/facebookresearch/detectron2/blob/master/INSTALL.md). Then build AdelaiDet with:
+It should be mentioned that AdelaiDet is extended from Detectron2, so please install Detectron2 following the official guide: [INSTALL.md](https://github.com/facebookresearch/detectron2/blob/master/INSTALL.md). Then build AdelaiDet with:
 ```
 git clone https://github.com/aim-uofa/adet.git
 cd adet
