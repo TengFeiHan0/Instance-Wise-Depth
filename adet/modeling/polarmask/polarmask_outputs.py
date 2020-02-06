@@ -51,12 +51,14 @@ def compute_ctrness_targets(reg_targets):
 def fcos_losses(
         labels,
         reg_targets,
-        logits_pred,
-        reg_pred,
+        cls_pred,
+        bbox_pred,
         ctrness_pred,
+        mask_pred,
         focal_loss_alpha,
         focal_loss_gamma,
         iou_loss,
+        maskiou_loss,
 ):
     num_classes = logits_pred.size(1)
     labels = labels.flatten()
@@ -98,11 +100,14 @@ def fcos_losses(
         ctrness_targets,
         reduction="sum"
     ) / num_pos_avg
-
+    
+    mask_loss = maskiou_loss(mask_pred, mask_targets) / 
+    
     losses = {
-        "loss_fcos_cls": class_loss,
-        "loss_fcos_loc": reg_loss,
-        "loss_fcos_ctr": ctrness_loss
+        "loss_polar_cls": class_loss,
+        "loss_polar_loc": reg_loss,
+        "loss_polar_ctr": ctrness_loss,
+        "loss_polar_mask": mask_loss,
     }
     return losses, {}
 
@@ -112,9 +117,10 @@ class FCOSOutputs(object):
             self,
             images,
             locations,
-            logits_pred,
-            reg_pred,
+            cls_pred,
+            bbox_pred,
             ctrness_pred,
+            mask_pred,
             focal_loss_alpha,
             focal_loss_gamma,
             iou_loss,
@@ -130,9 +136,11 @@ class FCOSOutputs(object):
             thresh_with_ctr,
             gt_instances=None,
     ):
-        self.logits_pred = logits_pred
-        self.reg_pred = reg_pred
+        self.cls_pred = cls_pred
+        self.bbox_pred = bbox_pred
         self.ctrness_pred = ctrness_pred
+        self.mask_pred = mask_pred
+          
         self.locations = locations
 
         self.gt_instances = gt_instances
@@ -303,24 +311,29 @@ class FCOSOutputs(object):
         # Collect all logits and regression predictions over feature maps
         # and images to arrive at the same shape as the labels and targets
         # The final ordering is L, N, H, W from slowest to fastest axis.
-        logits_pred = cat(
+        cls_pred = cat(
             [
                 # Reshape: (N, C, Hi, Wi) -> (N, Hi, Wi, C) -> (N*Hi*Wi, C)
                 x.permute(0, 2, 3, 1).reshape(-1, self.num_classes)
-                for x in self.logits_pred
+                for x in self.cls_pred
             ], dim=0,)
-        reg_pred = cat(
+        bbox_pred = cat(
             [
                 # Reshape: (N, B, Hi, Wi) -> (N, Hi, Wi, B) -> (N*Hi*Wi, B)
                 x.permute(0, 2, 3, 1).reshape(-1, 4)
-                for x in self.reg_pred
+                for x in self.bbox_pred
             ], dim=0,)
         ctrness_pred = cat(
             [
                 # Reshape: (N, 1, Hi, Wi) -> (N*Hi*Wi,)
-                x.reshape(-1) for x in self.ctrness_pred
+                x.permute(0, 2, 3, 1).reshape(-1) for x in self.ctrness_pred
             ], dim=0,)
-
+        mask_pred = cat(
+            [
+                
+                x.permute(0, 2, 3, 1).reshape(-1, 36) for x in self.mask_pred
+            ], dim=0,)
+        )
         labels = cat(
             [
                 # Reshape: (N, 1, Hi, Wi) -> (N*Hi*Wi,)
@@ -336,9 +349,10 @@ class FCOSOutputs(object):
         return fcos_losses(
             labels,
             reg_targets,
-            logits_pred,
-            reg_pred,
+            cls_pred,
+            bbox_pred,
             ctrness_pred,
+            mask_pred,
             self.focal_loss_alpha,
             self.focal_loss_gamma,
             self.iou_loss

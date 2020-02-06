@@ -72,7 +72,7 @@ class PolarMask(nn.Module):
         """
         features = [features[f] for f in self.in_features]
         locations = self.compute_locations(features)
-        logits_pred, reg_pred, ctrness_pred, bbox_towers = self.PolarMask_head(features)
+        cls_score, bbox_pred, ctrness, mask_pred = self.polarmask_head(features)
 
         if self.training:
             pre_nms_thresh = self.pre_nms_thresh_train
@@ -86,9 +86,10 @@ class PolarMask(nn.Module):
         outputs = PolarMaskOutputs(
             images,
             locations,
-            logits_pred,
-            reg_pred,
-            ctrness_pred,
+            cls_score,
+            bbox_pred,
+            ctrness,
+            mask_pred,
             self.focal_loss_alpha,
             self.focal_loss_gamma,
             self.iou_loss,
@@ -96,7 +97,7 @@ class PolarMask(nn.Module):
             self.sizes_of_interest,
             self.strides,
             self.radius,
-            self.fcos_head.num_classes,
+            self.polar_head.num_classes,
             pre_nms_thresh,
             pre_nms_topk,
             self.nms_thresh,
@@ -154,13 +155,15 @@ class PolarMaskHead(nn.Module):
                         "bbox": (cfg.MODEL.PolarMask.NUM_BOX_CONVS,
                                  cfg.MODEL.PolarMask.USE_DEFORMABLE),
                         "share": (cfg.MODEL.PolarMask.NUM_SHARE_CONVS,
-                                  cfg.MODEL.PolarMask.USE_DEFORMABLE)}
+                                  cfg.MODEL.PolarMask.USE_DEFORMABLE)
+                        "mask": (cfg.MODEL.PolarMask.NUM_MASK_CONVS,
+                                 cfg.MODEL.PolarMask.USE_DEFORMABLE),}
         norm = None if cfg.MODEL.PolarMask.NORM == "none" else cfg.MODEL.PolarMask.NORM
 
         in_channels = [s.channels for s in input_shape]
         assert len(set(in_channels)) == 1, "Each level must have the same channel!"
         in_channels = in_channels[0]
-
+       
         for head in head_configs:
             tower = []
             num_convs, use_deformable = head_configs[head]
@@ -209,24 +212,27 @@ class PolarMaskHead(nn.Module):
         torch.nn.init.constant_(self.polar_cls.bias, bias_value)
 
     def forward(self, x):
-        logits = []
-        bbox_reg = []
+        cls_score = []
+        bbox_pred = []
         ctrness = []
-        bbox_towers = []
+        mask_pred = []
+        
         for l, feature in enumerate(x):
             feature = self.share_tower(feature)
             cls_tower = self.cls_tower(feature)
             bbox_tower = self.bbox_tower(feature)
-
-            logits.append(self.polar_cls(cls_tower))
+            mask_tower = self.mask_tower(feature)
+            
+            cls_score.append(self.polar_cls(cls_tower))
             ctrness.append(self.polar_ctrness(bbox_tower))
             
-            reg = self.polar_reg(bbox_tower)
-            mask = self.polar_mask(bbox_tower)
+            bbox_reg = self.polar_reg(bbox_tower)
+            mask = self.polar_mask(mask_tower)
             if self.scales is not None:
-                reg = self.scales[l](reg)
+                bbox_reg = self.scales[l](bbox_reg)
                 mask = self.scales[l](mask)
             # Note that we use relu, as in the improved FCOS, instead of exp.
-            bbox_reg.append(F.relu(reg))
+            bbox_pred.append(F.relu(bbox_reg))
+            mask_pred.append(F.relu(mask))
 
-        return logits, bbox_reg, ctrness, mask, bbox_towers
+        return cls_score, bbox_pred, ctrness, mask_pred
