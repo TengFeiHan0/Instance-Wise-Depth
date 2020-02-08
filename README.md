@@ -7,14 +7,9 @@
 
 AdelaiDet consists of the following algorithms:
 
+* [FCOS]
 * [BlendMask](https://arxiv.org/abs/2001.00309) _to be released_
 * [SOLO](https://arxiv.org/abs/1912.04488) _to be released_
-
-
-
-## Models
-
-More models will be released soon.
 
 
 ## Installation
