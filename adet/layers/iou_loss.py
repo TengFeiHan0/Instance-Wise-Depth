@@ -54,11 +54,11 @@ class IOULoss(nn.Module):
             return losses.sum()
 
 
-class MaskIOULoss(nn.Module):
+class PolarMaskIOULoss(nn.Module):
     def __init__(self):
         super(MaskIOULoss, self).__init__()
 
-    def forward(self, pred, target, weight, avg_factor=None):
+    def forward(self, pred, target, weight=None):
         '''
          :param pred:  shape (N,36), N is nr_box
          :param target: shape (N,36)
@@ -71,7 +71,7 @@ class MaskIOULoss(nn.Module):
 
         loss = (l_max.sum(dim=1) / l_min.sum(dim=1)).log()
         loss = loss * weight
-        loss = loss.sum() / avg_factor
+        loss = loss.sum()
         return loss
 
 

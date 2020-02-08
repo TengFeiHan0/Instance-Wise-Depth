@@ -29,7 +29,7 @@ Naming convention:
 
     reg_targets: refers to the 4-d (left, top, right, bottom) distances that parameterize the ground-truth box.
 
-    logits_pred: predicted classification scores in [-inf, +inf];
+    cls_pred: predicted classification scores in [-inf, +inf];
     
     reg_pred: the predicted (left, top, right, bottom), corresponding to reg_targets 
 
@@ -37,30 +37,25 @@ Naming convention:
     
 """
 
-
-def compute_ctrness_targets(reg_targets):
-    if len(reg_targets) == 0:
-        return reg_targets.new_zeros(len(reg_targets))
-    left_right = reg_targets[:, [0, 2]]
-    top_bottom = reg_targets[:, [1, 3]]
-    ctrness = (left_right.min(dim=-1)[0] / left_right.max(dim=-1)[0]) * \
-                 (top_bottom.min(dim=-1)[0] / top_bottom.max(dim=-1)[0])
-    return torch.sqrt(ctrness)
+def polar_centerness_target(reg_targets)
+        # only calculate pos centerness targets, otherwise there may be nan
+        centerness_targets = (reg_targets.min(dim=-1)[0] / reg_targets.max(dim=-1)[0])
+        return torch.sqrt(centerness_targets)
 
 
-def fcos_losses(
+def polarmask_losses(
         labels,
         reg_targets,
         cls_pred,
-        bbox_pred,
+        reg_pred,
         ctrness_pred,
         mask_pred,
         focal_loss_alpha,
         focal_loss_gamma,
         iou_loss,
-        maskiou_loss,
-):
-    num_classes = logits_pred.size(1)
+        polarmaskiou_loss,
+    ):
+    num_classes = cls_pred.size(1)
     labels = labels.flatten()
 
     pos_inds = torch.nonzero(labels != num_classes).squeeze(1)
@@ -70,11 +65,11 @@ def fcos_losses(
     num_pos_avg = max(total_num_pos / num_gpus, 1.0)
 
     # prepare one_hot
-    class_target = torch.zeros_like(logits_pred)
+    class_target = torch.zeros_like(cls_pred)
     class_target[pos_inds, labels[pos_inds]] = 1
-
+    #loss1
     class_loss = sigmoid_focal_loss_jit(
-        logits_pred,
+        cls_pred,
         class_target,
         alpha=focal_loss_alpha,
         gamma=focal_loss_gamma,
@@ -83,25 +78,31 @@ def fcos_losses(
 
     reg_pred = reg_pred[pos_inds]
     reg_targets = reg_targets[pos_inds]
+    
+    
     ctrness_pred = ctrness_pred[pos_inds]
-
     ctrness_targets = compute_ctrness_targets(reg_targets)
     ctrness_targets_sum = ctrness_targets.sum()
     ctrness_norm = max(reduce_sum(ctrness_targets_sum).item() / num_gpus, 1e-6)
-
+    #loss2
     reg_loss = iou_loss(
         reg_pred,
         reg_targets,
         ctrness_targets
     ) / ctrness_norm
-
+    #loss3
     ctrness_loss = F.binary_cross_entropy_with_logits(
         ctrness_pred,
         ctrness_targets,
         reduction="sum"
     ) / num_pos_avg
     
-    mask_loss = maskiou_loss(mask_pred, mask_targets) / 
+    mask_pred = mask_pred[pos_inds]
+    mask_targets = mask_targets[pos_inds]
+    #loss4
+    mask_loss = maskiou_loss(mask_pred,
+                            mask_targets, 
+                            ctrness_targets) / ctrness_norm
     
     losses = {
         "loss_polar_cls": class_loss,
@@ -112,18 +113,19 @@ def fcos_losses(
     return losses, {}
 
 
-class FCOSOutputs(object):
+class PolarMaskOutputs(object):
     def __init__(
             self,
             images,
             locations,
             cls_pred,
-            bbox_pred,
+            reg_pred,
             ctrness_pred,
             mask_pred,
             focal_loss_alpha,
             focal_loss_gamma,
             iou_loss,
+            maskiou_loss,
             center_sample,
             sizes_of_interest,
             strides,
@@ -137,19 +139,20 @@ class FCOSOutputs(object):
             gt_instances=None,
     ):
         self.cls_pred = cls_pred
-        self.bbox_pred = bbox_pred
+        self.reg_pred = reg_pred
         self.ctrness_pred = ctrness_pred
         self.mask_pred = mask_pred
           
         self.locations = locations
 
         self.gt_instances = gt_instances
-        self.num_feature_maps = len(logits_pred)
+        self.num_feature_maps = len(cls_pred)
         self.num_images = len(images)
         self.image_sizes = images.image_sizes
         self.focal_loss_alpha = focal_loss_alpha
         self.focal_loss_gamma = focal_loss_gamma
         self.iou_loss = iou_loss
+        self.maskiou_loss = maskiou_loss
         self.center_sample = center_sample
         self.sizes_of_interest = sizes_of_interest
         self.strides = strides
@@ -299,7 +302,7 @@ class FCOSOutputs(object):
 
     def losses(self):
         """
-        Return the losses from a set of FCOS predictions and their associated ground-truth.
+        Return the losses from a set of PolarMask predictions and their associated ground-truth.
 
         Returns:
             dict[loss name -> loss value]: A dict mapping from loss name to loss value.
@@ -317,11 +320,11 @@ class FCOSOutputs(object):
                 x.permute(0, 2, 3, 1).reshape(-1, self.num_classes)
                 for x in self.cls_pred
             ], dim=0,)
-        bbox_pred = cat(
+        reg_pred = cat(
             [
                 # Reshape: (N, B, Hi, Wi) -> (N, Hi, Wi, B) -> (N*Hi*Wi, B)
                 x.permute(0, 2, 3, 1).reshape(-1, 4)
-                for x in self.bbox_pred
+                for x in self.reg_pred
             ], dim=0,)
         ctrness_pred = cat(
             [
@@ -346,23 +349,24 @@ class FCOSOutputs(object):
                 x.reshape(-1, 4) for x in reg_targets
             ], dim=0,)
 
-        return fcos_losses(
+        return polarmask_losses(
             labels,
             reg_targets,
             cls_pred,
-            bbox_pred,
+            reg_pred,
             ctrness_pred,
             mask_pred,
             self.focal_loss_alpha,
             self.focal_loss_gamma,
-            self.iou_loss
+            self.iou_loss, 
+            self.maskiou_loss
         )
 
     def predict_proposals(self):
         sampled_boxes = []
 
         bundle = (
-            self.locations, self.logits_pred,
+            self.locations, self.cls_pred,
             self.reg_pred, self.ctrness_pred,
             self.strides
         )
