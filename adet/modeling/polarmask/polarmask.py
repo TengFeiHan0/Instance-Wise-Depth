@@ -192,6 +192,8 @@ class PolarMaskHead(nn.Module):
         
         self.polar_reg = nn.Conv2d(in_channels, 4, kernel_size=3, padding=1)
         
+        # scale the bbox_pred of different level
+        # float to avoid overflow when enabling FP16
         if cfg.MODEL.PolarMask.USE_SCALE:
             self.scales = nn.ModuleList([Scale(init_value=1.0) for _ in self.fpn_strides])            
         else:
@@ -238,40 +240,4 @@ class PolarMaskHead(nn.Module):
 
         return cls_score, bbox_pred, ctrness, mask_pred
     
-    def polar_centerness_target(self, mask_targets):
-        # only calculate pos centerness targets, otherwise there may be nan
-        centerness_targets = (mask_targets.min(dim=-1)[0] / mask_targets.max(dim=-1)[0])
-        return torch.sqrt(centerness_targets)
-
-    def distance2mask(points, distances, angles, max_shape=None):
-        '''Decode distance prediction to 36 mask points
-        Args:
-            points (Tensor): Shape (n, 2), [x, y].
-            distance (Tensor): Distance from the given point to 36,from angle 0 to 350.
-            angles (Tensor):
-            max_shape (tuple): Shape of the image.
-
-        Returns:
-            Tensor: Decoded masks.
-        '''
-        num_points = points.shape[0]
-        points = points[:, :, None].repeat(1, 1, 36)
-        c_x, c_y = points[:, 0], points[:, 1]
-
-        sin = torch.sin(angles)
-        cos = torch.cos(angles)
-        sin = sin[None, :].repeat(num_points, 1)
-        cos = cos[None, :].repeat(num_points, 1)
-
-        x = distances * sin + c_x
-        y = distances * cos + c_y
-
-        if max_shape is not None:
-            x = x.clamp(min=0, max=max_shape[1] - 1)
-            y = y.clamp(min=0, max=max_shape[0] - 1)
-
-        res = torch.cat([x[:, None, :], y[:, None, :]], dim=1)
-        return res
-
-
 

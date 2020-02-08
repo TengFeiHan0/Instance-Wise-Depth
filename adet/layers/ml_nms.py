@@ -23,3 +23,4 @@ def ml_nms(boxlist, nms_thresh, max_proposals=-1,
         keep = keep[: max_proposals]
     boxlist = boxlist[keep]
     return boxlist
+
