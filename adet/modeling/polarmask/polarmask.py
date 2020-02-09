@@ -231,6 +231,7 @@ class PolarMaskHead(nn.Module):
             
             bbox_reg = self.polar_reg(bbox_tower)
             mask = self.polar_mask(mask_tower)
+            
             if self.scales is not None:
                 bbox_reg = self.scales[l](bbox_reg)
                 mask = self.scales[l](mask)

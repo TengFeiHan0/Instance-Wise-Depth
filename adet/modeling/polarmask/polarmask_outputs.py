@@ -1,7 +1,7 @@
 import logging
 import torch
 import torch.nn.functional as F
-
+import math
 from detectron2.layers import cat
 from detectron2.structures import Instances, Boxes, BitMasks
 from adet.utils.comm import get_world_size
@@ -37,11 +37,42 @@ Naming convention:
     
 """
 
-def polar_centerness_target(reg_targets)
+def polar_centerness_target(reg_targets):
         #'''only calculate pos centerness targets, otherwise there may be nan'''
        
         centerness_targets = (reg_targets.min(dim=-1)[0] / reg_targets.max(dim=-1)[0])
+        
         return torch.sqrt(centerness_targets)
+
+def distance2mask(points, distances, angles, max_shape=None):
+        '''Decode distance prediction to 36 mask points
+        Args:
+            points (Tensor): Shape (n, 2), [x, y].
+            distance (Tensor): Distance from the given point to 36,from angle 0 to 350.
+            angles (Tensor):
+            max_shape (tuple): Shape of the image.
+
+        Returns:
+            Tensor: Decoded masks.
+        '''
+        num_points = points.shape[0]
+        points = points[:, :, None].repeat(1, 1, 36)
+        c_x, c_y = points[:, 0], points[:, 1]
+
+        sin = torch.sin(angles)
+        cos = torch.cos(angles)
+        sin = sin[None, :].repeat(num_points, 1)
+        cos = cos[None, :].repeat(num_points, 1)
+
+        x = distances * sin + c_x
+        y = distances * cos + c_y
+
+        if max_shape is not None:
+            x = x.clamp(min=0, max=max_shape[1] - 1)
+            y = y.clamp(min=0, max=max_shape[0] - 1)
+
+        res = torch.cat([x[:, None, :], y[:, None, :]], dim=1)
+        return res
 
 
 def polarmask_losses(
@@ -164,6 +195,8 @@ class PolarMaskOutputs(object):
         self.nms_thresh = nms_thresh
         self.fpn_post_nms_top_n = fpn_post_nms_top_n
         self.thresh_with_ctr = thresh_with_ctr
+        
+        self.angles = torch.range(0, 350, 10).cuda() / 180 *math.pi
 
     def _transpose(self, training_targets, num_loc_list):
         '''
@@ -370,17 +403,17 @@ class PolarMaskOutputs(object):
 
         bundle = (
             self.locations, self.cls_pred,
-            self.reg_pred, self.ctrness_pred,
+            self.reg_pred, self.ctrness_pred, self.mask_pred,
             self.strides
         )
 
-        for i, (l, o, r, c, s) in enumerate(zip(*bundle)):
+        for i, (lo, cl, re, ct, ma, st) in enumerate(zip(*bundle)):
             # recall that during training, we normalize regression targets with FPN's stride.
             # we denormalize them here.
-            r = r * s
+            re = re * st
             sampled_boxes.append(
                 self.forward_for_single_feature_map(
-                    l, o, r, c, self.image_sizes
+                    lo, cl, re, ct, ma, self.image_sizes
                 )
             )
 
@@ -391,18 +424,22 @@ class PolarMaskOutputs(object):
 
     def forward_for_single_feature_map(
             self, locations, box_cls,
-            reg_pred, ctrness, image_sizes
+            reg_pred, ctrness, mask_pred, image_sizes
         ):
         N, C, H, W = box_cls.shape
 
         # put in the same format as locations
         box_cls = box_cls.view(N, C, H, W).permute(0, 2, 3, 1)
         box_cls = box_cls.reshape(N, -1, C).sigmoid()
+        
         box_regression = reg_pred.view(N, 4, H, W).permute(0, 2, 3, 1)
         box_regression = box_regression.reshape(N, -1, 4)
+        
         ctrness = ctrness.view(N, 1, H, W).permute(0, 2, 3, 1)
         ctrness = ctrness.reshape(N, -1).sigmoid()
-
+        
+        mask = mask_pred.view(N, 36, H, W).permute(0, 2, 3, 1)
+        mask = mask_pred.reshape(N, -1, 36)
         # if self.thresh_with_ctr is True, we multiply the classification
         # scores with centerness scores before applying the threshold.
         if self.thresh_with_ctr:
@@ -436,7 +473,7 @@ class PolarMaskOutputs(object):
                 per_class = per_class[top_k_indices]
                 per_box_regression = per_box_regression[top_k_indices]
                 per_locations = per_locations[top_k_indices]
-            
+                per_mask  = per_mask[top_k_indices]
             #distance2bbox
             detections = torch.stack([
                 per_locations[:, 0] - per_box_regression[:, 0],
@@ -445,14 +482,14 @@ class PolarMaskOutputs(object):
                 per_locations[:, 1] + per_box_regression[:, 3],
             ], dim=1)
             
-            masks = distance2mask(per_locations, per_box_regression)
+            masks = distance2mask(per_locations, per_mask, self.angles)
             
             
             boxlist = Instances(image_sizes[i])
             boxlist.pred_boxes = Boxes(detections)
             boxlist.scores = torch.sqrt(per_box_cls)
             boxlist.pred_classes = per_class
-            boxlist.mask_pred = BitMasks(masks)
+            boxlist.pred_mask = BitMasks(masks)
             boxlist.locations = per_locations
 
             results.append(boxlist)
@@ -483,35 +520,6 @@ class PolarMaskOutputs(object):
 
 
     
-def distance2mask(points, distances, angles, max_shape=None):
-        '''Decode distance prediction to 36 mask points
-        Args:
-            points (Tensor): Shape (n, 2), [x, y].
-            distance (Tensor): Distance from the given point to 36,from angle 0 to 350.
-            angles (Tensor):
-            max_shape (tuple): Shape of the image.
-
-        Returns:
-            Tensor: Decoded masks.
-        '''
-        num_points = points.shape[0]
-        points = points[:, :, None].repeat(1, 1, 36)
-        c_x, c_y = points[:, 0], points[:, 1]
-
-        sin = torch.sin(angles)
-        cos = torch.cos(angles)
-        sin = sin[None, :].repeat(num_points, 1)
-        cos = cos[None, :].repeat(num_points, 1)
-
-        x = distances * sin + c_x
-        y = distances * cos + c_y
-
-        if max_shape is not None:
-            x = x.clamp(min=0, max=max_shape[1] - 1)
-            y = y.clamp(min=0, max=max_shape[0] - 1)
-
-        res = torch.cat([x[:, None, :], y[:, None, :]], dim=1)
-        return res
 
 
     
