@@ -9,6 +9,23 @@ import operator
 
 from functools import reduce
 
+from contextlib import contextmanager
+from time import perf_counter
+
+
+
+@contextmanager
+def timeblock(label):
+    tic = perf_counter()
+    try:
+        yield
+    finally:
+        toc = perf_counter()
+        print('%s : %s' % (label, toc - tic))
+
+# 
+with timeblock('counting'):
+    pass
 
 def get_num_gen(gen):
     return sum(1 for x in gen)

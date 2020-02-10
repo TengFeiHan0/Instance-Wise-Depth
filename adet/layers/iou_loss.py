@@ -54,9 +54,9 @@ class IOULoss(nn.Module):
             return losses.sum()
 
 
-class PolarMaskIOULoss(nn.Module):
+class PolarIOULoss(nn.Module):
     def __init__(self):
-        super(MaskIOULoss, self).__init__()
+        super(PolarIOULoss, self).__init__()
 
     def forward(self, pred, target, weight=None):
         '''

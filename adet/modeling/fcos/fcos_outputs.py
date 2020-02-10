@@ -57,7 +57,7 @@ def fcos_losses(
         focal_loss_alpha,
         focal_loss_gamma,
         iou_loss,
-):
+    ):
     num_classes = logits_pred.size(1)
     labels = labels.flatten()
 

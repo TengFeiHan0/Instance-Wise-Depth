@@ -78,6 +78,7 @@ def distance2mask(points, distances, angles, max_shape=None):
 def polarmask_losses(
         labels,
         reg_targets,
+        mask_targets,
         cls_pred,
         reg_pred,
         ctrness_pred,
@@ -85,7 +86,7 @@ def polarmask_losses(
         focal_loss_alpha,
         focal_loss_gamma,
         iou_loss,
-        polarmaskiou_loss,
+        polariou_loss,
     ):
     num_classes = cls_pred.size(1)
     labels = labels.flatten()
@@ -132,7 +133,7 @@ def polarmask_losses(
     mask_pred = mask_pred[pos_inds]
     mask_targets = mask_targets[pos_inds]
     #loss4
-    mask_loss = maskiou_loss(mask_pred,
+    mask_loss = polariou_loss(mask_pred,
                             mask_targets, 
                             ctrness_targets) / ctrness_norm
     
@@ -157,7 +158,7 @@ class PolarMaskOutputs(object):
             focal_loss_alpha,
             focal_loss_gamma,
             iou_loss,
-            maskiou_loss,
+            polariou_loss,
             center_sample,
             sizes_of_interest,
             strides,
@@ -184,7 +185,7 @@ class PolarMaskOutputs(object):
         self.focal_loss_alpha = focal_loss_alpha
         self.focal_loss_gamma = focal_loss_gamma
         self.iou_loss = iou_loss
-        self.maskiou_loss = maskiou_loss
+        self.polariou_loss = polariou_loss
         self.center_sample = center_sample
         self.sizes_of_interest = sizes_of_interest
         self.strides = strides
@@ -281,10 +282,12 @@ class PolarMaskOutputs(object):
     def compute_targets_for_locations(self, locations, targets, size_ranges):
         labels = []
         reg_targets = []
+        mask_targets = []
         xs, ys = locations[:, 0], locations[:, 1]
 
         for im_i in range(len(targets)):
             targets_per_im = targets[im_i]
+            assert targets_per_im.mode =="xyxy"
             bboxes = targets_per_im.gt_boxes.tensor
             labels_per_im = targets_per_im.gt_classes
 
@@ -292,6 +295,7 @@ class PolarMaskOutputs(object):
             if bboxes.numel() == 0:
                 labels.append(labels_per_im.new_zeros(locations.size(0)) + self.num_classes)
                 reg_targets.append(locations.new_zeros((locations.size(0), 4)))
+                mask_targets.append(locations.new_zeros((locations.size(0),36)))
                 continue
 
             area = targets_per_im.gt_boxes.area()
@@ -319,20 +323,25 @@ class PolarMaskOutputs(object):
             locations_to_gt_area = area[None].repeat(len(locations), 1)
             locations_to_gt_area[is_in_boxes == 0] = INF
             locations_to_gt_area[is_cared_in_the_level == 0] = INF
-
+            
+            masks_ori = targets_per_im.get_field('masks').convert('mask').instances.masks.to(device=locations.device)  # n, h, w
+            masks_ori = masks_ori.permute(1, 2, 0) # h, w, n
+            masks = masks_ori.new_zeros((im_h, im_w, masks_ori.shape[2]))
+            masks[:masks_ori.shape[0], :masks_ori.shape[1], :] = masks_ori
+            mask_targets = masks[ys.long(), xs.long()]
+            locations_to_gt_area[mask_targets == 0] = INF
             # if there are still more than one objects for a location,
             # we choose the one with minimal area
             locations_to_min_area, locations_to_gt_inds = locations_to_gt_area.min(dim=1)
 
-            reg_targets_per_im = reg_targets_per_im[range(len(locations)), locations_to_gt_inds]
-
+            reg_targets_per_im = reg_targets_per_im[range(len(locations)), locations_to_gt_inds]           
             labels_per_im = labels_per_im[locations_to_gt_inds]
             labels_per_im[locations_to_min_area == INF] = self.num_classes
-
+             
             labels.append(labels_per_im)
             reg_targets.append(reg_targets_per_im)
-
-        return {"labels": labels, "reg_targets": reg_targets}
+            mask_targets.append(locations_to_gt_inds)
+        return {"labels": labels, "reg_targets": reg_targets, "mask_targets":mask_targets}
 
     def losses(self):
         """
@@ -343,7 +352,7 @@ class PolarMaskOutputs(object):
         """
 
         training_targets = self._get_ground_truth()
-        labels, reg_targets = training_targets["labels"], training_targets["reg_targets"]
+        labels, reg_targets,mask_targets = training_targets["labels"], training_targets["reg_targets"], training_targets["mask_targets"]
 
         # Collect all logits and regression predictions over feature maps
         # and images to arrive at the same shape as the labels and targets
@@ -359,8 +368,7 @@ class PolarMaskOutputs(object):
         reg_pred = cat(
             [
                 # Reshape: (N, B, Hi, Wi) -> (N, Hi, Wi, B) -> (N*Hi*Wi, B)
-                x.permute(0, 2, 3, 1).reshape(-1, 4)
-                for x in self.reg_pred
+                x.permute(0, 2, 3, 1).reshape(-1, 4) for x in self.reg_pred
             ], dim=0,)
         ctrness_pred = cat(
             [
@@ -388,6 +396,7 @@ class PolarMaskOutputs(object):
         return polarmask_losses(
             labels,
             reg_targets,
+            mask_targets,
             cls_pred,
             reg_pred,
             ctrness_pred,
@@ -395,8 +404,12 @@ class PolarMaskOutputs(object):
             self.focal_loss_alpha,
             self.focal_loss_gamma,
             self.iou_loss, 
-            self.maskiou_loss
+            self.polariou_loss
         )
+
+
+
+
 
     def predict_proposals(self):
         sampled_boxes = []

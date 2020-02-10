@@ -3,7 +3,7 @@ from torch import nn
 from detectron2.layers import Conv2d
 from .deform_conv import DFConv2d
 from detectron2.layers.batch_norm import get_norm
-
+import torch.nn.functional as F
 
 def conv_with_kaiming_uniform(
         norm=None, activation=None,
@@ -50,3 +50,5 @@ def conv_with_kaiming_uniform(
         return conv
 
     return make_conv
+
+

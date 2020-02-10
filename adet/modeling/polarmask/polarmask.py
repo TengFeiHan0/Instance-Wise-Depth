@@ -7,7 +7,7 @@ from torch.nn import functional as F
 from detectron2.layers import ShapeSpec
 from detectron2.modeling.proposal_generator.build import PROPOSAL_GENERATOR_REGISTRY
 
-from adet.layers import DFConv2d, IOULoss
+from adet.layers import DFConv2d, IOULoss,PolarIOULoss
 from .polarmask_outputs import PolarMaskOutputs
 
 
@@ -47,6 +47,7 @@ class PolarMask(nn.Module):
         self.thresh_with_ctr      = cfg.MODEL.PolarMask.THRESH_WITH_CTR
         # fmt: on
         self.iou_loss = IOULoss(cfg.MODEL.PolarMask.LOC_LOSS_TYPE)
+        self.polariou_loss = PolarIOULoss(cfg.MODEL.PolarMask.POLAR_LOSS_TYPE)
         # generate sizes of interest
         soi = []
         prev_size = -1
@@ -93,6 +94,7 @@ class PolarMask(nn.Module):
             self.focal_loss_alpha,
             self.focal_loss_gamma,
             self.iou_loss,
+            self.polariou_loss,
             self.center_sample,
             self.sizes_of_interest,
             self.strides,
