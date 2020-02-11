@@ -1,9 +1,10 @@
 # Instance-wise Depth Estimation
-
-## Note:Based on AdelaiDet, which is an open source toolbox including a series of instance segmentation algorithms, I develop my own system.
-
+In this work,we are aiming at predicting instance-wise depth via self-supervised learning mechanism. The orginal depth estimation module is originated from [monodepth2](https://github.com/nianticlabs/monodepth2), while any one stage off-the-shelf instance segmentation network could be inserted into our system. 
 
 
+## AdelaiDet
+
+an open source toolbox including a series of instance segmentation algorithms, I develop my own system.
 
 AdelaiDet consists of the following algorithms:
 
