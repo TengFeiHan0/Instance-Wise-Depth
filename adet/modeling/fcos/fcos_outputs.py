@@ -64,6 +64,7 @@ def fcos_losses(
     pos_inds = torch.nonzero(labels != num_classes).squeeze(1)
     num_pos_local = pos_inds.numel()
     num_gpus = get_world_size()
+    
     total_num_pos = reduce_sum(pos_inds.new_tensor([num_pos_local])).item()
     num_pos_avg = max(total_num_pos / num_gpus, 1.0)
 

@@ -8,20 +8,16 @@ from detectron2.layers import ShapeSpec
 from detectron2.modeling.proposal_generator.build import PROPOSAL_GENERATOR_REGISTRY
 
 from adet.layers import DFConv2d, IOULoss
-from .embedmaskoutputs import EmbedMaskOutputs 
 
+from .losses import make_embed_mask_loss_evaluator
+from .proposals import make_embed_mask_postprocessor
+
+from adet.utils.comm import Scale
 
 
 __all__ =["EmbedMask"]
 INF = 100000000
 
-class Scale(nn.Module):
-    def __init__(self, init_value=1.0):
-        super(Scale, self).__init__()
-        self.scale = nn.Parameter(torch.FloatTensor([init_value]))
-
-    def forward(self, input):
-        return input * self.scale
 
 
 
@@ -30,38 +26,26 @@ class EmbedMask(nn.Module):
     def __init__(self,cfg, input_shape: Dict[str, ShapeSpec]):
         super(EmbedMask, self).__init__()
         
-        self.focal_loss_alpha     = cfg.MODEL.EMBED_MASK.LOSS_ALPHA
-        self.focal_loss_gamma     = cfg.MODEL.EMBED_MASK.LOSS_GAMMA
-        self.fpn_strides          = cfg.MODEL.EMBED_MASK.FPN_STRIDES
-        self.center_sample        = cfg.MODEL.EMBED_MASK.CENTER_SAMPLE
-        self.radius               = cfg.MODEL.EMBED_MASK.POS_RADIUS
-        #self.strides              = cfg.MODEL.EMBED_MASK.FPN_STRIDES
+        # self.focal_loss_alpha     = cfg.MODEL.EMBED_MASK.LOSS_ALPHA
+        # self.focal_loss_gamma     = cfg.MODEL.EMBED_MASK.LOSS_GAMMA
+        # self.fpn_strides          = cfg.MODEL.EMBED_MASK.FPN_STRIDES
+        # self.center_sample        = cfg.MODEL.EMBED_MASK.CENTER_SAMPLE
+        # self.radius               = cfg.MODEL.EMBED_MASK.POS_RADIUS
+        # #self.strides              = cfg.MODEL.EMBED_MASK.FPN_STRIDES
         
-        # #copied from  fcos, maybe removed in future
-        # self.pre_nms_thresh_train = cfg.MODEL.EMBED_MASK.INFERENCE_TH_TRAIN
-        # self.pre_nms_thresh_test  = cfg.MODEL.EMBED_MASK.INFERENCE_TH_TEST
-        # self.pre_nms_topk_train   = cfg.MODEL.EMBED_MASK.PRE_NMS_TOPK_TRAIN
-        # self.pre_nms_topk_test    = cfg.MODEL.EMBED_MASK.PRE_NMS_TOPK_TEST
-        # self.nms_thresh           = cfg.MODEL.EMBED_MASK.NMS_TH
-        # self.post_nms_topk_train  = cfg.MODEL.EMBED_MASK.POST_NMS_TOPK_TRAIN
-        # self.post_nms_topk_test   = cfg.MODEL.EMBED_MASK.POST_NMS_TOPK_TEST
-        # self.thresh_with_ctr      = cfg.MODEL.EMBED_MASK.THRESH_WITH_CTR
+        # # #copied from  fcos, maybe removed in future
+        # # self.pre_nms_thresh_train = cfg.MODEL.EMBED_MASK.INFERENCE_TH_TRAIN
+        # # self.pre_nms_thresh_test  = cfg.MODEL.EMBED_MASK.INFERENCE_TH_TEST
+        # # self.pre_nms_topk_train   = cfg.MODEL.EMBED_MASK.PRE_NMS_TOPK_TRAIN
+        # # self.pre_nms_topk_test    = cfg.MODEL.EMBED_MASK.PRE_NMS_TOPK_TEST
+        # # self.nms_thresh           = cfg.MODEL.EMBED_MASK.NMS_TH
+        # # self.post_nms_topk_train  = cfg.MODEL.EMBED_MASK.POST_NMS_TOPK_TRAIN
+        # # self.post_nms_topk_test   = cfg.MODEL.EMBED_MASK.POST_NMS_TOPK_TEST
+        # # self.thresh_with_ctr      = cfg.MODEL.EMBED_MASK.THRESH_WITH_CTR
         self.in_features          = cfg.MODEL.EMBED_MASK.IN_FEATURES
         
         # based on embedmask(maskrcnn-benchmark version)
         self.norm_reg_targets     = cfg.MODEL.EMBED_MASK.NORM_REG_TARGETS
-        self.mask_scale_factor    = cfg.MODEL.EMBED_MASK.MASK_SCALE_FACTOR
-        self.sample_in_mask       = cfg.MODEL.EMBED_MASK.SAMPLE_IN_MASK
-        self.sample_pos_iou_th    = cfg.MODEL.EMBED_MASK.SAMPLE_POS_IOU_TH
-
-        self.box_padding          = cfg.MODEL.EMBED_MASK.BOX_PADDING
-
-        self.fix_margin           = cfg.MODEL.EMBED_MASK.FIX_MARGIN
-        prior_margin              = cfg.MODEL.EMBED_MASK.PRIOR_MARGIN
-        self.init_margin = -math.log(0.5) / (prior_margin**2)
-        
-        self.loss_mask_alpha = cfg.MODEL.EMBED_MASK.LOSS_MASK_ALPHA
-        self.loss_smooth_alpha = cfg.MODEL.EMBED_MASK.LOSS_SMOOTH_ALPHA
         
         self.embed_head = EmbedMaskHead(cfg, [input_shape[f] for f in self.in_features])
         self.box_selector_test = make_embed_mask_postprocessor(cfg)
@@ -86,14 +70,18 @@ class EmbedMask(nn.Module):
         locations = self.compute_locations(features)
         box_cls, box_regression, centerness,proposal_embed, proposal_margin, pixel_embed = self.embed_head(features)
         
-        outputs = EmbedMaskOutputs(
-            images,locations, 
-            box_cls, box_regression,
-            centerness,proposal_embed, proposal_margin, 
-            pixel_embed,gt_instances
-        ) 
-    
-    
+        if self.training:
+            losses =  self.loss_evaluator( 
+            locations, box_cls, box_regression, centerness, 
+            proposal_embed, proposal_margin, pixel_embed, gt_instances)
+            return losses
+        else:
+            proposals = self.bo_selector_test(
+            locations, box_cls, box_regression,
+            centerness, proposal_embed, proposal_margin, pixel_embed,
+            image.image_sizes, gt_instances)
+            
+            return proposals
     
     
         
