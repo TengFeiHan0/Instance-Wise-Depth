@@ -4,7 +4,7 @@ In this work,we are aiming at predicting instance-wise depth via self-supervised
 
 ## AdelaiDet
 
-an open source toolbox including a series of instance segmentation algorithms, I develop my own system.
+an open source toolbox including a series of instance segmentation algorithms, based on  this framework, I develop my own system.
 
 AdelaiDet consists of the following algorithms:
 
