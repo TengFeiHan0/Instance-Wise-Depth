@@ -11,7 +11,8 @@ AdelaiDet consists of the following algorithms:
 * [FCOS](https://github.com/tianzhi0549/FCOS)
 * [BlendMask](https://arxiv.org/abs/2001.00309) _to be released_
 * [SOLO](https://arxiv.org/abs/1912.04488) _to be released_
-
+##Note
+Initialy, I was planning to develop my own system based on the mentioned open-source framework. However, releasing their implementations may need a longer time than we expect. Therefore, I resort to EmbedMask(https://arxiv.org/abs/1912.01954), which is also a one-stage instance sgementation network. The original implementation is based on "maskrcnn-benchmark", but I reformulate their code and will be opened at here. My implementations include tow versions, one is based upon "Detectron2", another is from scratch.
 
 ## Installation
 
