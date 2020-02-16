@@ -12,7 +12,7 @@ AdelaiDet consists of the following algorithms:
 * [BlendMask](https://arxiv.org/abs/2001.00309) _to be released_
 * [SOLO](https://arxiv.org/abs/1912.04488) _to be released_
 ## Note
-Initialy, I was planning to develop my own system based on the mentioned open-source framework. However, releasing their implementations may need a longer time than we expect. Therefore, I resort to [EmbedMask](https://arxiv.org/abs/1912.01954), which is also a one-stage instance sgementation network. The original implementation is based on [maskrcnn-benchmark](https://github.com/yinghdb/EmbedMask), but I reformulate their code and will be opened at here. My implementations include tow versions, one is based upon [Detectron2](https://github.com/facebookresearch/detectron2), another is from scratch.
+Initialy, I was planning to develop my own system based on the mentioned open-source framework. However, releasing their implementations may need a longer time than we expect. Therefore, I resort to [EmbedMask](https://arxiv.org/abs/1912.01954), which is also a one-stage instance sgementation network. The original implementation is based on [maskrcnn-benchmark](https://github.com/yinghdb/EmbedMask), but I reformulate their code and will be opened at [here](https://github.com/TengFeiHan0/EmbedMask.pytorch). My implementations include tow versions, one is based upon [Detectron2](https://github.com/facebookresearch/detectron2), another is from scratch.
 
 ## Installation
 
