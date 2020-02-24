@@ -134,7 +134,7 @@ class EmbedMaskLossComputation(object):
         matched_idxes = torch.stack(matched_idxes)
 
         return labels_level_first, reg_targets_level_first, labels, reg_targets, matched_idxes
-
+    #same
     def get_sample_region(self, gt, strides, num_points_per, gt_xs, gt_ys, radius=1):
         num_gts = gt.shape[0]
         K = len(gt_xs)
@@ -176,7 +176,7 @@ class EmbedMaskLossComputation(object):
         center_bbox = torch.stack((left, top, right, bottom), -1)
         inside_gt_bbox_mask = center_bbox.min(-1)[0] > 0
         return inside_gt_bbox_mask
-
+    #same
     def compute_targets_for_locations(self, locations, targets, object_sizes_of_interest, im_w, im_h):
         labels = []
         reg_targets = []
@@ -217,6 +217,7 @@ class EmbedMaskLossComputation(object):
             locations_to_gt_area = area[None].repeat(len(locations), 1)
             locations_to_gt_area[is_in_boxes == 0] = INF
             locations_to_gt_area[is_cared_in_the_level == 0] = INF
+            
             if self.sample_in_mask:
                 masks_ori = targets_per_im.get_field('masks').convert('mask').instances.masks.to(device=locations.device)  # n, h, w
                 masks_ori = masks_ori.permute(1, 2, 0) # h, w, n

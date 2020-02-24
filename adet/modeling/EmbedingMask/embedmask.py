@@ -26,47 +26,17 @@ class EmbedMask(nn.Module):
     def __init__(self,cfg, input_shape: Dict[str, ShapeSpec]):
         super(EmbedMask, self).__init__()
         
-        # self.focal_loss_alpha     = cfg.MODEL.EMBED_MASK.LOSS_ALPHA
-        # self.focal_loss_gamma     = cfg.MODEL.EMBED_MASK.LOSS_GAMMA
-        # self.fpn_strides          = cfg.MODEL.EMBED_MASK.FPN_STRIDES
-        # self.center_sample        = cfg.MODEL.EMBED_MASK.CENTER_SAMPLE
-        # self.radius               = cfg.MODEL.EMBED_MASK.POS_RADIUS
-        # #self.strides              = cfg.MODEL.EMBED_MASK.FPN_STRIDES
-        
-        # # #copied from  fcos, maybe removed in future
-        # # self.pre_nms_thresh_train = cfg.MODEL.EMBED_MASK.INFERENCE_TH_TRAIN
-        # # self.pre_nms_thresh_test  = cfg.MODEL.EMBED_MASK.INFERENCE_TH_TEST
-        # # self.pre_nms_topk_train   = cfg.MODEL.EMBED_MASK.PRE_NMS_TOPK_TRAIN
-        # # self.pre_nms_topk_test    = cfg.MODEL.EMBED_MASK.PRE_NMS_TOPK_TEST
-        # # self.nms_thresh           = cfg.MODEL.EMBED_MASK.NMS_TH
-        # # self.post_nms_topk_train  = cfg.MODEL.EMBED_MASK.POST_NMS_TOPK_TRAIN
-        # # self.post_nms_topk_test   = cfg.MODEL.EMBED_MASK.POST_NMS_TOPK_TEST
-        # # self.thresh_with_ctr      = cfg.MODEL.EMBED_MASK.THRESH_WITH_CTR
-        self.in_features          = cfg.MODEL.EMBED_MASK.IN_FEATURES
+        # self.in_features = cfg.MODEL.EMBED_MASK.IN_FEATURES
         
         # based on embedmask(maskrcnn-benchmark version)
-        self.norm_reg_targets     = cfg.MODEL.EMBED_MASK.NORM_REG_TARGETS
+        self.norm_reg_targets = cfg.MODEL.EMBED_MASK.NORM_REG_TARGETS
         
         self.embed_head = EmbedMaskHead(cfg, [input_shape[f] for f in self.in_features])
         self.box_selector_test = make_embed_mask_postprocessor(cfg)
         self.loss_evaluator = make_embed_mask_loss_evaluator(cfg)
     
     def forward(self, images, features, gt_instances):
-        """
-        Arguments:
-            images (ImageList): images for which we want to compute the predictions
-            features (list[Tensor]): features computed from the images that are
-                used for computing the predictions. Each tensor in the list
-                correspond to different feature levels
-            targets (list[BoxList): ground-truth boxes present in the image (optional)
-
-        Returns:
-            boxes (list[BoxList]): the predicted boxes from the RPN, one BoxList per
-                image.
-            losses (dict[Tensor]): the losses for the model during training. During
-                testing, it is an empty dict.
-        """
-        features = [features[f] for f in self.in_features]
+        
         locations = self.compute_locations(features)
         box_cls, box_regression, centerness,proposal_embed, proposal_margin, pixel_embed = self.embed_head(features)
         
@@ -117,21 +87,21 @@ class EmbedMaskHead(nn.Module):
         self.fpn_strides = cfg.MODEL.EMBED_MASK.FPN_STRIDES
         self.norm_reg_targets = cfg.MODEL.EMBED_MASK.NORM_REG_TARGETS
        
-        num_classes = cfg.MODEL.EMBED_MASK.NUM_CLASSES - 1
+        num_classes = cfg.MODEL.EMBED_MASK.NUM_CLASSES
         embed_dim = cfg.MODEL.EMBED_MASK.EMBED_DIM
         prior_margin = cfg.MODEL.EMBED_MASK.PRIOR_MARGIN
         self.box_to_margin_scale = cfg.MODEL.EMBED_MASK.BOX_TO_MARGIN_SCALE
         self.box_to_margin_block = cfg.MODEL.EMBED_MASK.BOX_TO_MARGIN_BLOCK
         self.init_sigma_bias = math.log(-math.log(0.5) / (prior_margin ** 2))
         
-        head_configs = {"cls": (cfg.MODEL.FCOS.NUM_CLS_CONVS,
+        head_configs = {"cls": (cfg.MODEL.EMBED_MASK.NUM_CLS_CONVS,
                                 False),
-                        "bbox": (cfg.MODEL.FCOS.NUM_BOX_CONVS,
-                                 cfg.MODEL.FCOS.USE_DEFORMABLE),
-                        "share": (cfg.MODEL.FCOS.NUM_SHARE_CONVS,
-                                  cfg.MODEL.FCOS.USE_DEFORMABLE)
-                        "mask": (cfg.MODEL.FCOS.NUM_MASK_CONVS,
-                                 cfg.MODEL.FCOS.USE_DEFORMABLE)}
+                        "bbox": (cfg.MODEL.EMBED_MASK.NUM_BOX_CONVS,
+                                 cfg.MODEL.EMBED_MASK.USE_DEFORMABLE),
+                        "share": (cfg.MODEL.EMBED_MASK.NUM_SHARE_CONVS,
+                                  cfg.MODEL.EMBED_MASK.USE_DEFORMABLE)
+                        "mask": (cfg.MODEL.EMBED_MASK.NUM_MASK_CONVS,
+                                 cfg.MODEL.EMBED_MASK.USE_DEFORMABLE)}
         in_channels = [s.channels for s in input_shape]
         assert len(set(in_channels)) == 1, "Each level must have the same channel!"
         in_channels = in_channels[0]
@@ -162,10 +132,9 @@ class EmbedMaskHead(nn.Module):
         self.centerness = nn.Conv2d(in_channels, 1
             kernel_size=3, stride=1, padding=1)
         
-        if cfg.MODEL.FCOS.USE_SCALE:
-            self.scales = nn.ModuleList([Scale(init_value=1.0) for _ in self.fpn_strides])
-        else:
-            self.scales = None
+        
+        self.scales = nn.ModuleList([Scale(init_value=1.0) for _ in self.fpn_strides])
+        
         
          for modules in [
             self.cls_tower, self.bbox_tower,
@@ -178,7 +147,7 @@ class EmbedMaskHead(nn.Module):
                     torch.nn.init.constant_(l.bias, 0)
 
         # initialize the bias for focal loss
-        prior_prob = cfg.MODEL.FCOS.PRIOR_PROB
+        prior_prob = cfg.MODEL.EMBED_MASK.PRIOR_PROB
         bias_value = -math.log((1 - prior_prob) / prior_prob)
         torch.nn.init.constant_(self.cls_logits.bias, bias_value)
         
@@ -198,7 +167,10 @@ class EmbedMaskHead(nn.Module):
         #pixel embeding
         self.pixel_embed_pred = nn.Conv2d(in_channels, embed_dim, 
                 kernel_size=3, stride=1, padding =1, bias=True)
-                   
+        torch.nn.init.normal_(self.pixel_embed_pred.weight, std=0.01)       
+        torch.nn.init.constant_(self.pixel_embed_pred.bias, self.init_sigma_bias) 
+        
+                 
     def forward(self,x):
         logits = []
         bbox_reg = []

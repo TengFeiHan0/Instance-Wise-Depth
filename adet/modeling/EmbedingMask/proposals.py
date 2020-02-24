@@ -27,7 +27,7 @@ def remove_small_boxes(boxlist, min_size):
     return boxlist[keep]
 
 
-class EmbedMaskPostProcessor(torch.nn.Module):
+class EmbedMaskPostProcessor(nn.Module):
     """
     Performs post-processing on the outputs of the RetinaNet boxes.
     This is only used in the testing.
