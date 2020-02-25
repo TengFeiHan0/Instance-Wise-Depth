@@ -3,16 +3,16 @@ DATALOADER:
   NUM_WORKERS: 4
   SIZE_DIVISIBILITY: 32
 DATASETS:
-  TEST: ('cityscapes_fine_instanceonly_seg_val_cocostyle',)
-  TRAIN: ('cityscapes_fine_instanceonly_seg_train_cocostyle',)
+  TEST: ('cityscapes_mask_instance_val',)
+  TRAIN: ('cityscapes_mask_instance_train',)
   TRAIN_PATH: "./datasets/"
 INPUT:
-  MAX_SIZE_TEST: 1333
-  MAX_SIZE_TRAIN: 1333
+  MAX_SIZE_TEST: 2048
+  MAX_SIZE_TRAIN: 2048
   MIN_SIZE_RANGE_TRAIN: (-1, -1)
-  MIN_SIZE_TEST: 800
-  MIN_SIZE_TRAIN: (640, 192)
-  PIXEL_MEAN: [102.9801, 115.9465, 122.7717]
+  MIN_SIZE_TEST: 1024
+  MIN_SIZE_TRAIN: (800, 832, 864, 896, 928, 960, 992, 1024, 1024)
+  #PIXEL_MEAN: [102.9801, 115.9465, 122.7717]
   PIXEL_STD: [1.0, 1.0, 1.0]
   TO_BGR255: True
 MODEL:
@@ -64,27 +64,26 @@ MODEL:
     PRIOR_PROB: 0.01
     SAMPLE_IN_MASK: True
     SAMPLE_POS_IOU_TH: 0.5
-    USE_DCN_IN_TOWER: False
   MASK_LR: 0.01
   MASK_WEIGHT_DECAY: 0.0005
   NAME: "instanceDepth"
   NUM_EPOCHS: 50
 OUTPUT_DIR: "output/embedmask_r50/"
-PATHS_CATALOG: "/home/tengfeihan/Downloads/monodepth2-master/config/paths_catalog.py"
+
 SOLVER:
-  BASE_LR: 0.001
+  BASE_LR: 0.01
   BIAS_LR_FACTOR: 2
   CHECKPOINT_PERIOD: 2500
   DCONV_OFFSETS_LR_FACTOR: 1.0
   GAMMA: 0.1
   IMS_PER_BATCH: 8
-  MAX_ITER: 200000
+  MAX_ITER: 24000
   MOMENTUM: 0.9
-  STEPS: (30000,)
+  STEPS: (18000,)
   WARMUP_FACTOR: 0.3333333333333333
   WARMUP_ITERS: 500
   WARMUP_METHOD: "linear"
-  WEIGHT_DECAY: 0.0005
+  WEIGHT_DECAY: 0.0001
   WEIGHT_DECAY_BIAS: 0
 TEST:
   DETECTIONS_PER_IMG: 100

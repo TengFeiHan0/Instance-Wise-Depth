@@ -10,8 +10,8 @@ class FPN(nn.Module):
 
         self.inner_convs = nn.ModuleList()
         self.out_convs = nn.ModuleList()
-        in_channels = cfg.MODEL.FCOS.IN_CHANNELS
-        out_channel = cfg.MODEL.FCOS.OUTPUT_CHANNEL 
+        in_channels = cfg.MODEL.FPN.IN_CHANNELS
+        out_channel = cfg.MODEL.FPN.OUTPUT_CHANNEL 
         for i, in_channel in enumerate(in_channels, 1):
             if in_channel == 0:
                 self.inner_convs.append(None)
@@ -56,14 +56,14 @@ class FPN(nn.Module):
 class FPNTopP6P7(nn.Module):
     def __init__(self, cfg):
         super().__init__()
-        in_channel = cfg.MODEL.FCOS.IN_CHANNELS[-1]
-        out_channel = cfg.MODEL.FCOS.OUTPUT_CHANNEL
+        in_channel = cfg.MODEL.FPN.IN_CHANNELS[-1]
+        out_channel = cfg.MODEL.FPN.OUTPUT_CHANNEL
         self.p6 = nn.Conv2d(in_channel, out_channel, 3, stride=2, padding=1)
         self.p7 = nn.Conv2d(out_channel, out_channel, 3, stride=2, padding=1)
 
         self.apply(init_conv_kaiming)
 
-        self.use_p5 = cfg.MODEL.FCOS.USE_P5
+        self.use_p5 = cfg.MODEL.FPN.USE_P5
 
     def forward(self, f5, p5):
         input = p5 if self.use_p5 else f5

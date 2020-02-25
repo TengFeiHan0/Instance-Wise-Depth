@@ -75,8 +75,9 @@ class BinaryMaskList(object):
             masks = masks[None]
 
         assert len(masks.shape) == 3
-        assert masks.shape[1] == size[1], "%s != %s" % (masks.shape[1], size[1])
-        assert masks.shape[2] == size[0], "%s != %s" % (masks.shape[2], size[0])
+       
+        assert masks.shape[0] == size[1], "%s != %s" % (masks.shape[1], size[1])
+        assert masks.shape[1] == size[0], "%s != %s" % (masks.shape[2], size[0])
 
         self.masks = masks
         self.size = tuple(size)

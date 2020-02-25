@@ -31,8 +31,7 @@ def build_dataset(dataset_list, transforms, dataset_catalog, is_train=True):
     for dataset_name in dataset_list:
         data = dataset_catalog.get(dataset_name)
         factory = getattr(D, data["factory"])
-        args = data["args"]
-        # for COCODataset, we want to remove images without annotations
+        args = data["args"]   
         # during training
         args["transforms"] = transforms
         # make dataset from factory

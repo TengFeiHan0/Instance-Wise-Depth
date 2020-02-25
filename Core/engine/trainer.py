@@ -51,20 +51,23 @@ class Trainer:
 
         self.models["encoder"] = resnet50(pretrained=False)
         self.parameters_to_train += list(self.models["encoder"].parameters())
-
+        self.models["encoder"].to(self.device)
+       
         self.models["depth"] = DepthDecoder(cfg)
-        self.parameters_to_train += list(self.models["depth"].parameters())
+        self.parameters_to_train += list(self.models["depth"].parameters())  
+        self.models["depth"].to(self.device) 
         
         fpn_top = FPNTopP6P7(cfg)
         self.fpn = FPN(cfg, fpn_top)
         self.models["mask"] = EMBED_MASK(cfg)
-        self.parameters_mask += list(self.models["mask"].parameters())
+        self.parameters_mask += list(self.models["mask"].parameters())  
+        self.models["mask"].to(self.device)
         
         if cfg.MODEL.DEPTH.POSE_MODEL_TYPE == "shared":
             self.models["pose"] = PoseDecoder(cfg, self.num_pose_frames)
 
         
-        self.models = {model.to(self.device) for model in self.models.values()}       
+        self.models["pose"].to(self.device)    
         self.parameters_to_train += list(self.models["pose"].parameters())
         
         self.depth_optimizer = optim.Adam(self.parameters_to_train, cfg.MODEL.DEPTH.LEARNING_RATE)
@@ -79,19 +82,12 @@ class Trainer:
         if args.load_weights_folder is not None:
             self.load_model()
 
-        print("Training model named:\n  ", cfg.MODEL.MODEL_NAME)
-        print("Models and tensorboard events files are saved to:\n  ", cfg.MODEL.LOG_DIR)
+        print("Training model named:\n  ", args.model_name)
+        print("Models and tensorboard events files are saved to:\n  ", args.log_dir)
         print("Training is using:\n  ", self.device)
 
         
-        fpath = os.path.join(os.path.dirname(__file__), "splits", args.split, "{}_files.txt")
-
-        train_filenames = readlines(fpath.format("train"))
-        val_filenames = readlines(fpath.format("val"))
-        img_ext = '.png' if args.png else '.jpg'
-
-        num_train_samples = len(train_filenames)
-        self.num_total_steps = num_train_samples // cfg.SOLVER.IMS_PER_BATCH * cfg.MODEL.NUM_EPOCHS
+       
         self.data_loader = make_data_loader(
         cfg,is_train=True,is_distributed=args.distributed)
         
@@ -107,9 +103,9 @@ class Trainer:
     
         self.backproject_depth = {}
         self.project_3d = {}
-        for scale in cfg.MODEL.SCALES:
-            h = cfg.MODEL.INPUT.HEIGHT // (2 ** scale)
-            w = cfg.MODEL.INPUT.WIDTH // (2 ** scale)
+        for scale in cfg.MODEL.DEPTH.SCALES:
+            h = cfg.INPUT.HEIGHT // (2 ** scale)
+            w = cfg.INPUT.WIDTH // (2 ** scale)
 
             self.backproject_depth[scale] = BackprojectDepth(cfg.SOLVER.IMS_PER_BATCH, h, w)
             self.backproject_depth[scale].to(self.device)
@@ -193,8 +189,8 @@ class Trainer:
         start_training_time = time.time()
         end = time.time()
         max_iter = len(self.data_loader)
-        
-        for batch_idx, (inputs,targets,_) in enumerate(self.data_loader):
+        start_iter = 0
+        for batch_idx, (inputs,targets) in enumerate(self.data_loader, start_iter):
             
             data_time = time.time() - end
             before_op_time = time.time()
@@ -225,7 +221,7 @@ class Trainer:
             
             if early_phase or late_phase:
                 log_time(cfg,batch_idx, duration, losses["loss"].cpu().data, 
-                         self.start_time, self.step, self.num_total_steps)
+                         self.start_time, self.step)
 
                 if "depth_gt" in inputs:
                     compute_depth_losses(inputs, outputs, losses)

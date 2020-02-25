@@ -15,7 +15,7 @@ _C.MODEL.NAME="instanceDepth"
 # EmbedMask Options
 # ---------------------------------------------------------------------------- #
 _C.MODEL.EMBED_MASK = CN()
-_C.MODEL.EMBED_MASK.NUM_CLASSES = 81  # the number of classes including background
+_C.MODEL.EMBED_MASK.NUM_CLASSES = 9  # the number of classes including background
 _C.MODEL.EMBED_MASK.FPN_STRIDES = [8, 16, 32, 64, 128]
 _C.MODEL.EMBED_MASK.FPN_INTEREST_SPLIT = (64, 128, 256, 512)
 _C.MODEL.EMBED_MASK.PRIOR_PROB = 0.01
@@ -54,11 +54,19 @@ _C.MODEL.EMBED_MASK.MASK_NUM_CONVS = 4
 _C.MODEL.EMBED_MASK.BOX_TO_MARGIN_SCALE = 800
 # blocking the gradient from box to margin may bring better performance
 _C.MODEL.EMBED_MASK.BOX_TO_MARGIN_BLOCK = True
+_C.MODEL.EMBED_MASK.FPN_POST_NMS_TOP_N = 100
+_C.MODEL.EMBED_MASK.MIN_SIZE = 0
 
 # inference settings
 _C.MODEL.EMBED_MASK.MASK_TH = 0.5
 _C.MODEL.EMBED_MASK.POSTPROCESS_MASKS = False
+_C.MODEL.EMBED_MASK.IN_CHANNEL = 256
 
+#-----FPN---------------------
+_C.MODEL.FPN = CN()
+_C.MODEL.FPN.IN_CHANNELS = [256, 512, 1024, 2048]
+_C.MODEL.FPN.OUTPUT_CHANNEL = 256
+_C.MODEL.FPN.USE_P5 = True
 
 #  depth --------------------------------------------------------------
 _C.MODEL.DEPTH = CN()
@@ -83,7 +91,7 @@ _C.MODEL.DEPTH.MAX_DEPTH = 100.0
 # -----------------------------------------------------------------------------
 _C.INPUT = CN()
 # Size of the smallest side of the image during training
-_C.INPUT.MIN_SIZE_TRAIN = (640, 192)  # (800,)
+_C.INPUT.MIN_SIZE_TRAIN = (800, )  # (800,)
 # The range of the smallest side for multi-scale training
 _C.INPUT.MIN_SIZE_RANGE_TRAIN = (-1, -1)  # -1 means disabled and it will use MIN_SIZE_TRAIN
 # Maximum size of the side of the image during training
@@ -98,17 +106,18 @@ _C.INPUT.PIXEL_MEAN = [102.9801, 115.9465, 122.7717]
 _C.INPUT.PIXEL_STD = [1., 1., 1.]
 # Convert image to BGR format (for Caffe2 models), in range 0-255
 _C.INPUT.TO_BGR255 = True
-
+_C.INPUT.HEIGHT = 1024
+_C.INPUT.WIDTH = 2048
 
 # -----------------------------------------------------------------------------
 # Dataset
 # -----------------------------------------------------------------------------
 _C.DATASETS = CN()
 # List of the dataset names for training, as present in paths_catalog.py
-_C.DATASETS.TRAIN = ("cityscapes_fine_instanceonly_seg_train_cocostyle",)
+_C.DATASETS.TRAIN = ("cityscapes_mask_instance_train",)
 # List of the dataset names for testing, as present in paths_catalog.py
-_C.DATASETS.TEST = ("cityscapes_fine_instanceonly_seg_val_cocostyle",)
-_C.DATASETS.TRAIN_PATH = "./datasets/cityscapes/"
+_C.DATASETS.TEST = ("cityscapes_mask_instance_val",)
+_C.DATASETS.TRAIN_PATH = "./datasets/"
 # -----------------------------------------------------------------------------
 # DataLoader
 # -----------------------------------------------------------------------------

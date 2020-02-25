@@ -5,11 +5,12 @@ import numpy as np
 from PIL import Image, ImageOps, ImageFilter
 import PIL.ImageEnhance as ImageEnhance
 
-class Compose(object):
+class Compose:
     def __init__(self, transforms):
         self.transforms = transforms
 
     def __call__(self, image, target):
+        
         for t in self.transforms:
             image, target = t(image, target)
         return image, target
@@ -33,65 +34,85 @@ class Normalize(object):
         self.mean = mean
         self.std = std
 
-    def __call__(self, sample):
-        img = sample['image']
-        mask = sample['label']
+    def __call__(self, img, target=None):
+        
+       
         img = np.array(img).astype(np.float32)
-        mask = np.array(mask).astype(np.float32)
+        target = np.array(target).astype(np.float32)
         img /= 255.0
         img -= self.mean
         img /= self.std
 
-        return {'image': img,
-                'label': mask}
-
+        return img, target
 
 class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
 
-    def __call__(self, sample):
+    def __call__(self, img, target):
         # swap color axis because
         # numpy image: H x W x C
         # torch image: C X H X W
-        img = sample['image']
-        mask = sample['label']
         img = np.array(img).astype(np.float32).transpose((2, 0, 1))
-        mask = np.array(mask).astype(np.float32)
+        target = np.array(target).astype(np.float32)
 
         img = torch.from_numpy(img).float()
-        mask = torch.from_numpy(mask).float()
+        target = torch.from_numpy(target).float()
 
-        return {'image': img,
-                'label': mask}
+        return img, target
 
 
 class RandomHorizontalFlip(object):
-    def __call__(self, sample):
-        img = sample['image']
-        mask = sample['label']
-        if random.random() < 0.5:
+    def __init__(self,prob=0.5):
+        self.prob = prob
+    def __call__(self, img, target):
+        
+        if random.random() < self.prob:
             img = img.transpose(Image.FLIP_LEFT_RIGHT)
-            mask = mask.transpose(Image.FLIP_LEFT_RIGHT)
+            target = target.transpose(Image.FLIP_LEFT_RIGHT)
 
-        return {'image': img,
-                'label': mask}
+        return img, target
 
 
 class Resize(object):
-    def __init__(self, size):
-        self.size = (size, size)  # size: (h, w)
+    def __init__(self, min_size, max_size):
+        if not isinstance(min_size, (list, tuple)):
+            min_size = (min_size,)
+        self.min_size = min_size
+        self.max_size = max_size
+       
+    # modified from torchvision to add support for max size
+    def get_size(self, image_size):
+        w, h = image_size
+        size = random.choice(self.min_size)
+        max_size = self.max_size
+        if max_size is not None:
+            min_original_size = float(min((w, h)))
+            max_original_size = float(max((w, h)))
+            if max_original_size / min_original_size * size > max_size:
+                size = int(round(max_size * min_original_size / max_original_size))
 
-    def __call__(self, sample):
-        img = sample['image']
-        mask = sample['label']
+        if (w <= h and w == size) or (h <= w and h == size):
+            return (h, w)
 
-        assert img.size == mask.size
+        if w < h:
+            ow = size
+            oh = int(size * h / w)
+        else:
+            oh = size
+            ow = int(size * w / h)
 
+        return (oh, ow)
+    
+    def __call__(self, img,target):
+       
+
+        assert img.size == target.size
+        self.size = self.get_size(img.size)
+        
         img = img.resize(self.size, Image.BILINEAR)
-        mask = mask.resize(self.size, Image.NEAREST)
+        target = target.resize(self.size, Image.NEAREST)
 
-        return {'image': img,
-                'label': mask}
+        return img, target
         
         
 def build_transforms(cfg, is_train=True):
@@ -112,9 +133,9 @@ def build_transforms(cfg, is_train=True):
         max_size = cfg.INPUT.MAX_SIZE_TEST
         flip_prob = 0
 
-    to_bgr255 = cfg.INPUT.TO_BGR255
+
     normalize_transform = Normalize(
-        mean=cfg.INPUT.PIXEL_MEAN, std=cfg.INPUT.PIXEL_STD, to_bgr255=to_bgr255
+        mean=cfg.INPUT.PIXEL_MEAN, std=cfg.INPUT.PIXEL_STD
     )
 
     transform = Compose(

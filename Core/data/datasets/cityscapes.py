@@ -118,8 +118,9 @@ class CityScapesDataset(AbstractDataset):
         target.add_field("labels", torch.tensor(labels))
         masks = SegmentationMask(segmentations, img.size, mode=self.mode)
         target.add_field("masks", masks)
-        if self.transforms is not None:
-            img, target = self.transforms(img, target)
+        transform = self.transforms
+        if transform is not None:
+            img, target = transform(img, target)
 
         return img, target, idx
 

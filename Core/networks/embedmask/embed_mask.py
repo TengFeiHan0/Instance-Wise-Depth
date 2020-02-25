@@ -15,28 +15,39 @@ class EmbedMaskHead(nn.Module):
         self.fpn_strides = cfg.MODEL.EMBED_MASK.FPN_STRIDES
         self.norm_reg_targets = cfg.MODEL.EMBED_MASK.NORM_REG_TARGETS
         self.centerness_on_reg = cfg.MODEL.EMBED_MASK.CENTERNESS_ON_REG
-        in_channels = cfg.MODEL.EMBED_MASK.IN_CHANNELS
-        num_classes = cfg.MODEL.EMBED_MASK.NUM_CLASSES - 1
+        in_channels = cfg.MODEL.EMBED_MASK.IN_CHANNEL
+        num_classes = cfg.MODEL.EMBED_MASK.NUM_CLASSES 
         embed_dim = cfg.MODEL.EMBED_MASK.EMBED_DIM
         prior_margin = cfg.MODEL.EMBED_MASK.PRIOR_MARGIN
         self.box_to_margin_scale = cfg.MODEL.EMBED_MASK.BOX_TO_MARGIN_SCALE
         self.box_to_margin_block = cfg.MODEL.EMBED_MASK.BOX_TO_MARGIN_BLOCK
         self.init_sigma_bias = math.log(-math.log(0.5) / (prior_margin ** 2))
         
-        def make_tower(num_convs, dilations=None):
-            tower = [] 
+        
+        head_configs = {
+            "cls": cfg.MODEL.EMBED_MASK.HEAD_NUM_CONVS,
+            "bbox": cfg.MODEL.EMBED_MASK.HEAD_NUM_CONVS,
+            "mask": cfg.MODEL.EMBED_MASK.HEAD_NUM_CONVS,
+        }
+        for head in head_configs:
+            tower = []
+            num_convs = head_configs[head]
             for i in range(num_convs):
                 tower.append(
-                    nn.Conv2d(in_channels, in_channels,
-                     kernel_size =3, stride =1, padding =1, 
-                     bias =True)
+                    nn.Conv2d(
+                        in_channels, in_channels, kernel_size=3,
+                        stride = 1, padding = 1, bias=True
                     )
-                tower.append(nn.GroupNorm(32, in_channels))
-                tower.append(nn.ReLU())
-            return tower
-        
-        self.add_module('cls_tower', nn.Sequential(*make_tower(cfg.MODEL.EMBED_MASK.HEAD_NUM_CONVS)))
-        self.add_module('bbox_tower', nn.Sequential(*make_tower(cfg.MODEL.EMBED_MASK.HEAD_NUM_CONVS)))
+                )
+                tower.append(
+                    nn.GroupNorm(32, in_channels)
+                )
+                tower.append(
+                    nn.ReLU(inplace=True)
+                )
+            self.add_module('{}_tower'.format(head), nn.Sequential(*tower))    
+            
+            
         self.cls_logits = nn.Conv2d(
             in_channels, num_classes, kernel_size=3, stride=1,
             padding=1
@@ -80,7 +91,6 @@ class EmbedMaskHead(nn.Module):
         torch.nn.init.constant_(self.proposal_margin_pred.bias, self.init_sigma_bias)
 
         # pixel embedding
-        self.add_module('mask_tower', nn.Sequential(*make_tower(cfg.MODEL.EMBED_MASK.MASK_NUM_CONVS)))
         self.pixel_embed_pred = nn.Conv2d(
             in_channels, embed_dim, kernel_size=3, stride=1, padding=1, bias=True
         )

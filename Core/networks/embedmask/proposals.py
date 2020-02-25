@@ -29,7 +29,8 @@ class EmbedMaskProposal(nn.Module):
         
         self.pre_nms_thresh = cfg.MODEL.EMBED_MASK.PRE_NMS_TOP_N
         self.pre_nms_top_n = cfg.MODEL.EMBED_MASK.PRE_NMS_TOP_N
-        self.nms_thresh = cfg.MODEL.EMBED_MASK.NMS_THRESH
+        
+        self.nms_thresh = cfg.MODEL.EMBED_MASK.NMS_TH
         self.fpn_post_nms_top_n = cfg.MODEL.EMBED_MASK.FPN_POST_NMS_TOP_N
         self.min_size = cfg.MODEL.EMBED_MASK.MIN_SIZE
         self.num_classes = cfg.MODEL.EMBED_MASK.NUM_CLASSES
