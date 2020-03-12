@@ -57,10 +57,3 @@ python tools/train_net.py \
 
 The configs are made for 8-GPU training. To train on another number of GPUs, change the `num-gpus`.
 
-
-## Citing AdelaiDet
-
-If you use this toolbox in your research or wish to refer to the baseline results, please use the following BibTeX entries.
-
-```BibTeX
-@inproceedings{tian2019fcos,
