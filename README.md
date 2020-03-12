@@ -1,5 +1,5 @@
 # Instance-wise Depth Estimation (under construction)
-In this work,we are aiming at predicting instance-wise depth via self-supervised learning mechanism. The introduction of instance segmentation network is essential to dealing with dynamic objects, in turn a high precise depth map is also helpful for object detection/instance segmentation tasks.
+In this work,we are aiming at predicting instance-wise depth via self-supervised learning mechanism. The introduction of instance segmentation network is essential to dealing with dynamic objects, in turn a high precise depth map is also helpful for object detection/instance segmentation tasks. 
 
 * [monodepth2](https://github.com/nianticlabs/monodepth2)
 * [centermask_plus](https://github.com/TengFeiHan0/CenterMask_plus)
@@ -7,7 +7,7 @@ In this work,we are aiming at predicting instance-wise depth via self-supervised
 
 ## AdelaiDet
 
-an open source toolbox including a series of instance segmentation algorithms.
+generally speaking, any instance seg networks could be inserted into our system, however, here is an open source toolbox including a series of instance segmentation algorithms. Up to now, These algorithms have achieved better performance than most SOTA methods on COCO dataset.
 
 AdelaiDet consists of the following algorithms:
 
