@@ -1,5 +1,8 @@
 # Instance-wise Depth Estimation (under construction)
-In this work,we are aiming at predicting instance-wise depth via self-supervised learning mechanism. The orginal depth estimation module is originated from [monodepth2](https://github.com/nianticlabs/monodepth2), while any one stage off-the-shelf instance segmentation network could be inserted into our system. 
+In this work,we are aiming at predicting instance-wise depth via self-supervised learning mechanism. 
+
+* [monodepth2](https://github.com/nianticlabs/monodepth2)
+* [centermask_plus](https://github.com/TengFeiHan0/CenterMask_plus)
 
 
 ## AdelaiDet
