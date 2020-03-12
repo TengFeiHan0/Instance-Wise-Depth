@@ -1,5 +1,5 @@
 # Instance-wise Depth Estimation (under construction)
-In this work,we are aiming at predicting instance-wise depth via self-supervised learning mechanism. 
+In this work,we are aiming at predicting instance-wise depth via self-supervised learning mechanism. The introduction of instance segmentation network is essential to dealing with dynamic objects, in turn a high precise depth map is also helpful for object detection/instance segmentation tasks.
 
 * [monodepth2](https://github.com/nianticlabs/monodepth2)
 * [centermask_plus](https://github.com/TengFeiHan0/CenterMask_plus)
